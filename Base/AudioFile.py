@@ -6,16 +6,14 @@ import warnings
 
 class AudioFile:
   def self.__init__():
-    self.name = ''
-    self.fType = ''
-    self.fRate = ''
-    self.fType = ''
-    self.bitDepth = ''
+    self._name = ''
+    self._fType = ''
+    self._fRate = 0
+    self._fType = ''
+    self._bitDepth = 0
+    self._data = np.array()
     
   
-    
-    
-    
     
   def self.Open(fileID, fType = '', fRate = 48000, fType = 'float', bitDepth=32, **kwargs):
     """ Generalised file opening """
