@@ -35,8 +35,6 @@ class AudioFile:
   _setEncoding(encoding): Sets the encoding following all rules
   _openRaw():     Reads a raw file
   _openAscii():   Reads an ASCII file
-  
-  
   """
   
   
