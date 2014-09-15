@@ -112,6 +112,8 @@ class AudioFile:
       If unknown key in keyword arguments
     IOError
       If file can not be found
+    ValueError
+      If endian is not understood in raw files
     """
     
     # function inputs
@@ -123,16 +125,18 @@ class AudioFile:
       if key not in kwargs.keys():
         kwargs[key] = defaults[key]
   
+    self.fileID = fileID
     
     self.rate = float(kwargs['rate'])
   
-    encoding = str(kwargs['encoding'])
-    self._setEncoding(encoding)
+
   
     if kwargs['bitDepth'] is None:
       self.bitdepth = None # for ASCII
     else:
       self.bitdepth = int(kwargs['bitDepth'])
+  
+
   
     # get the file name
     try:
@@ -155,9 +159,13 @@ class AudioFile:
       warnings.warn('Unknown file type, using raw')
       self.fType = 'raw'
     
-    
-    if fType == 'raw':
+    if self.fType == 'raw':
+       # will also sort out the bitdepth
+      self._setEncoding(str(kwargs['encoding']))
       return self._openRaw(kwargs['endian'])
+    elif self.fType == 'ascii':
+      self.encoding = None
+      return self._openAscii()
     
     
   ### PRIVATE METHODS ###
@@ -166,8 +174,21 @@ class AudioFile:
     """ Sets the encoding for the file """
     if encoding is None:
       self.encoding = None
-    elif encoding in self.EncodingSubstitutions.keys():
-      self.encoding = validEncodings[encoding]
+    if encoding in self.EncodingSubstitutions.keys():
+      encoding = validEncodings[encoding]
+    
+    if encoding == 'double':
+      self.encoding = 'float'
+      self.bitdepth = 64
+    elif encoding == 'short':
+      self.encoding = 'unsigned'
+      self.bitdepth = 16
+    elif encoding == 'char':
+      self.encoding = 'unsigned'
+      self.bitdepth = 8
+    elif encoding == 'ascii':
+      self.encoding = 'ascii'
+      self.bitdepth = None
     elif encoding in self.validEncodings:
       self.encoding = encoding
     else:
@@ -177,7 +198,23 @@ class AudioFile:
   def _openRaw(self, endian):
     """ Opens raw files """  
     try:
-      self.data = np.array()
+      dtype = ''
+      if not endian == '=':
+        if endian in ['>','<']:
+          dtypes += endian
+        else:
+          raise ValueError('Unknown endian type')
+      if self.encoding == 'float':
+        dtype += 'f'
+      elif self.encoding == 'unsigned':
+        dtype += 'u'
+      elif self.encoding == 'integer':
+        dtype += 'i'
+      else:
+        raise ValueError('Unknown encoding')
+      dtypeStr += str(self.bitdepth/8)
+          
+      self.data = np.array(np.fromfile(self.fileID, dtype=np.dtype(dtypeStr), count=-1, sep=''), ndmin=2)
       self.read = True
       return True
     except Exception as e:
@@ -187,7 +224,7 @@ class AudioFile:
   def _openAscii(self):
     """ Opens ASCII files """  
     try:
-      self.data = np.array()
+      self.data = np.loadtxt(self.fileID, ndmin = 2)
       self.bitDepth = None
       self.read = True
       return True
