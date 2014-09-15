@@ -32,13 +32,13 @@ class AudioFile:
     
   Private methods and attributes
   ------------------------------
-  _setEncoding(encoding): Sets the encoding following all rules
-  _openRaw():     Reads a raw file
-  _openAscii():   Reads an ASCII file
+  _setEncoding(encoding) Sets the encoding following all rules
+  _openRaw(endian)       Reads a raw file
+  _openAscii()           Reads an ASCII file
   """
   
   
-  def __init__(self, fileID, fType = 'raw', rate = 48000, encoding='float', bitdepth=32, **kwargs):
+  def __init__(self, fileID = None, fType = 'raw', rate = 48000, encoding='float', bitdepth=32, **kwargs):
     """ Constructor, can be used as interface to Open """
     self.EncodingSubstitutions = {'f':'float',
                          's':'short',
@@ -51,11 +51,10 @@ class AudioFile:
                          'a':'ascii'}
     self.validEncodings = self.EncodingSubstitutions.keys() +  self.EncodingSubstitutions.values()
     
+    self.clear()
     if fileID is not None:
       self.Open(fileID, fType, rate, encoding, bitdepth, **kwargs)
-    else:
-      self.clear()
-    
+
   def clear(self):
     """ Empties all variables """
     self.name = ''           # name of the orginal audio file
@@ -97,6 +96,11 @@ class AudioFile:
     bitdepth : integer, optional
       Number of bits per sample, default 32 for raw files, None for ascii, otherwise always read from file and ignored
     
+    keyword only arguments (all optional):
+    ----------------------
+      endian = {'=','>','<'}
+        endianess in order: (machine, big, little), default is machine, only used for raw files
+    
     Returns
     -------
     boolean
@@ -111,7 +115,7 @@ class AudioFile:
     """
     
     # function inputs
-    defaults = {'fType':fType, 'rate':rate, 'encoding':encoding, 'bitdepth':bitDepth}
+    defaults = {'fType':fType, 'rate':rate, 'encoding':encoding, 'bitdepth':bitDepth, 'endian':'='}
     for key in kwargs:
       if key not in defaults.keys():
         raise KeyError('Unknown key in AudioFile.Open: ' + str(key))
@@ -153,7 +157,7 @@ class AudioFile:
     
     
     if fType == 'raw':
-      return self._openRaw()
+      return self._openRaw(kwargs['endian'])
     
     
   ### PRIVATE METHODS ###
@@ -169,9 +173,8 @@ class AudioFile:
     else:
       warnings.warn('Unknown encoding, using float')
       self.encoding = 'float'
-  
       
-  def _openRaw(self):
+  def _openRaw(self, endian):
     """ Opens raw files """  
     try:
       self.data = np.array()
