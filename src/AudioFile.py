@@ -598,20 +598,18 @@ if __name__ == '__main__':
     print 'Testing AudioFile module'
     
     print '   loading files ...',
-    #afOpen = AudioFile() # Create unopened object
-    #afOpen.open(os.path.join('..','demo','test.raw'), 'raw', 48000, 'float', 32) # Use open function
+    afOpen = AudioFile() # Create unopened object
+    afOpen.open(os.path.join('..','demo','test.raw'), 'raw', 48000, 'float', 32) # Use open function
     afRaw = AudioFile(os.path.join('..','demo','test.raw')) # by filename
-    #afRaw = AudioFile(open(os.path.join('..','demo','test.raw'),'rb'),'raw') # with object
-    #afTxt = AudioFile(os.path.join('..','demo','test.txt'),'txt') # by filename
-    #afTxt = AudioFile(open(os.path.join('..','demo','test.txt'),'r'),'txt') # with object
-    #assert(afRaw.length == afTxt.length)
-    #assert(afRaw.length == afOpen.length)
+    afRaw = AudioFile(open(os.path.join('..','demo','test.raw'),'rb'),'raw') # with object
+    afTxt = AudioFile(os.path.join('..','demo','test.txt'),'txt') # by filename
+    afTxt = AudioFile(open(os.path.join('..','demo','test.txt'),'r'),'txt') # with object
     print ' done'
     
     print '   framing data ...',
-    #afRaw.frame(0.005,0.025,True,False)
+    afRaw.frame(0.005,0.025,True,False)
     afRaw.frame(0.005,0.025,True,True)
-    #afRaw.frame(0.005,0.025,False,False)
+    afRaw.frame(0.005,0.025,False,False)
     print ' done'
     
     print '   windowing data ...',
@@ -623,6 +621,20 @@ if __name__ == '__main__':
     afRaw.window('rectangular')
     afRaw.window('trapazoid')
     print ' done' 
+
+    import time    
+    afTest = AudioFile()
+    testFile = os.path.join('..','demo','test.raw')
+    
+    start = time.clock()
+    m = 100
+    for n in range(m):
+        afTest.clear()
+        afTest.open(testFile)
+        afTest.frame()
+        afTest.window()
+    end = time.clock()
+    print "   average run time: {0}".format((end-start)/m)
     
 
 
