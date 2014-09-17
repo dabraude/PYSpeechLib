@@ -579,7 +579,8 @@ class AudioFile:
   def _openAscii(self):
     """ Opens ASCII files """  
     try:
-      self.data = np.loadtxt(self.fileID, ndmin = 2)
+      self.data = np.loadtxt(self.fileID)
+      self.data = np.array(self.data, ndmin = 2)
       if self.data.shape[0] == 1: 
           self.data = self.data.T
       self.bitDepth = None
