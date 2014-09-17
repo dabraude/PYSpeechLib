@@ -33,6 +33,9 @@ class AudioFile:
     length:     Length of the audio (sec)
     frameshift: Shift between frames in the current stored version
     framewidth: Length of the frames in the current stored version
+    windowType: What type of window was used  
+    windowNorm: What type of normalisation was used
+    kaiserBeta: What was the value of the kaiser beta in the window
     
     
   Private methods and attributes
@@ -45,6 +48,7 @@ class AudioFile:
   _framewidthPT          The frame length in data points
   _framedPadded          Was the frame padded
   _framedCentred         Was the frame centred
+  _windowedData          The framed data that has been windowed
   """
   
   
@@ -77,6 +81,9 @@ class AudioFile:
     self.length = 0.0       # length of the file in seconds
     self.frameshift = None  # frame shift used for frame and window functions in seconds
     self.framewidth = None  # frame length used for frame and window functions in seconds
+    self.windowType = None  # What type of window was used  
+    self.windowNorm = None  # What type of normalisation was used
+    self.kaiserBeta = None  # What was the value of the kaiser beta in the window
     
     # Private member functions
     self._frameshiftPT = None  # frame shift used for frame and window functions in data points
@@ -84,6 +91,8 @@ class AudioFile:
     self._framedData = None    # framed version of the data
     self._framedPadded = None  # Was the framed version padded
     self._framedCentred = None # Was the framed version centered if it was padded
+    self._windowedData = None  # windowed version of the data 
+    
     
   def close(self):
     """ Alias for clear """
@@ -214,7 +223,7 @@ class AudioFile:
     pad: boolean, optional
       zero pad the end (or start and end if centred) to bring to same length, default true 
     centered: boolean, optional
-      frames are chosen from the centre rather than the start (only relevant for padding)
+      first sample is in the center of the first frame rather than the start (only relevant for padding), default true
       
     Returns
     -------
@@ -248,8 +257,6 @@ class AudioFile:
          (not self._framedPadded  or (centred == self._framedCentred or centred is None)) and \
          not(self.frameshift is None and self.framewidth is None):
       # Existing version available and frameshift and framelength match that version
-      print 'yes'
-            
       return self._framedData  
     else:
       if frameshift is None:
@@ -266,13 +273,13 @@ class AudioFile:
     
       if pad is None:
         if self._framedPadded is None:
-          self._framedPadded = False
+          self._framedPadded = True
       else:
         self._framedPadded = not pad == False
 
       if centred is None:
         if self._framedCentred is None:
-          self._framedCentred = False
+          self._framedCentred = True
       else:
         self._framedCentred = not centred == False    
     
@@ -287,50 +294,57 @@ class AudioFile:
         warnings.warn('frame width is not an integer frame shift in data points')
     
 
-    
-      if not self._framedPadded:
-        startInds = range(0,self.data.size-self._framewidthPT, self._frameshiftPT) 
-        self._framedData = [self.data[0:self._framewidthPT,:].T]
-        for s in startInds[1:]:
-          self._framedData.append(self.data[s:s+self._framewidthPT,:].T)
-        self._framedData = np.array(self._framedData).squeeze()   
-      else:  
-        if not self._framedCentred:
-          startInds = range(0,self.data.size, self._frameshiftPT) 
-          self._framedData = [self.data[0:self._framewidthPT,:].T]
-          for s in startInds[1:]:
-            appendFrame = self.data[s:s+self._framewidthPT,:].T
-            appendFrame = np.hstack((appendFrame, np.zeros((1, self._framewidthPT - appendFrame.size))))
-            self._framedData.append(appendFrame)
-          self._framedData = np.array(self._framedData).squeeze() 
-        else:
-          startInds = range(self._frameshiftPT/2,self.data.size, self._frameshiftPT)   
-          appendFrame = self.data[startInds[0]:startInds[0]+self._framewidthPT/2,:].T
-          self._framedData = [np.hstack((np.zeros((1, self._framewidthPT - appendFrame.size)), appendFrame))]
-          for s in startInds[1:]:
-            if s > self._framewidthPT/2 and s < self.data.size - self._framewidthPT/2:
-              appendFrame = self.data[s-self._framewidthPT/2:s+self._framewidthPT/2,:].T
+      
+      if self._framedPadded:
+        startInds = range(0, self.data.size, self._frameshiftPT)  
+        self._framedData = np.zeros((len(startInds), self._framewidthPT))  
+        
+        if self._framedCentred:
+          halfwidth = self._framewidthPT/2
+          maxS = self.data.size - halfwidth; minS = halfwidth
+          for i, s in enumerate(startInds):
+            if s > minS and s < maxS:  
+              self._framedData[i,:] = self.data[s-halfwidth:s+halfwidth,:].T
             else:
-              if s < self._framewidthPT:
-                appendFrame = self.data[0:s+self._framewidthPT/2,:].T      
-                appendFrame = np.hstack((np.zeros((1, self._framewidthPT - appendFrame.size)), appendFrame))
+              if s < self._framewidthPT:  
+                appendFrame = self.data[0:s+halfwidth,:].T 
+                self._framedData[i, -appendFrame.size:] = appendFrame
               else:
-                appendFrame = self.data[s-self._framewidthPT/2:,:].T        
-                appendFrame = np.hstack((appendFrame, np.zeros((1, self._framewidthPT - appendFrame.size))))
-            self._framedData.append(appendFrame)
-            
-          self._framedData = np.array(self._framedData).squeeze() 
-          
+                appendFrame = self.data[s-halfwidth:,:].T  
+                self._framedData[i, :appendFrame.size] = appendFrame
+        else:
+          for i, s in enumerate(startInds):
+            appendFrame = self.data[s:s+self._framewidthPT,:].T
+            self._framedData[i, :appendFrame.size] = appendFrame  
 
+      else:
+        startInds = range(0,(self.data.size-self._framewidthPT), self._frameshiftPT)    
+        self._framedData = np.zeros((len(startInds), self._framewidthPT))  
+        for i, s in enumerate(startInds):
+          self._framedData[i,:] = self.data[s:s+self._framewidthPT,:].T
+
+          
 
       """      
       # This was used for finding the fastest method to do the framing
       # If you would like to try something else this is left for comparisons     
-      
+
       import time    
 
-      m = 100
-
+      m = 10
+      print 
+      
+      # pre-allocated numpy array 0.004 sec
+      start = time.clock()
+      for n in range(m):
+          startInds = range(0,(self.data.size-self._framewidthPT), self._frameshiftPT)    
+          self._framedData = np.zeros((len(startInds), self._framewidthPT))  
+          for i, s in enumerate(startInds):
+            self._framedData[i,:] = self.data[s:s+self._framewidthPT,:].T
+      end = time.clock()
+      print 'pre allocated numpy',
+      print (end - start)/m
+      
       # list comprehension 0.227 sec
       start = time.clock()
       for n in range(m):
@@ -338,10 +352,8 @@ class AudioFile:
           self._framedData = [self.data[s:s+self._framewidthPT,:] for s in startInds]
           self._framedData = np.array(self._framedData).squeeze()
       end = time.clock()
-      print 'list comprehension',
+      print 'list comprehension ',
       print (end - start)/m
-      
-           
       
       # numpy stacking  0.379 sec
       start = time.clock()
@@ -349,12 +361,11 @@ class AudioFile:
           startInds = range(0,self.data.size-self._framewidthPT, self._frameshiftPT) 
           self._framedData = self.data[0:self._framewidthPT,:].T
           for s in startInds[1:]:
-              self._framedData = np.vstack((self._framedData, self.data[s:s+self._framewidthPT,:].T))
+              self._framedData = np.vstack((self._framnumpy ndarrayedData, self.data[s:s+self._framewidthPT,:].T))
 
       end = time.clock()
-      print 'numpy stacking    ',
+      print 'numpy stacking     ',
       print (end - start)/m
-      
       
       # list stacking  0.065 sec    
       start = time.clock()
@@ -365,28 +376,151 @@ class AudioFile:
               self._framedData.append(self.data[s:s+self._framewidthPT,:].T)
           self._framedData = np.array(self._framedData).squeeze()   
       end = time.clock()
-      print 'list stacking     ',
+      print 'list stacking      ',
       print (end - start)/m
       """
       
-      
-      
-      
-      
       return self._framedData
+            
+  def window(self, windowType = None, normalisation = None, kaiserBeta = None, **kwargs):
+    """ Creates a windowed version of the framed data 
+    
+    This applies a windowing function to the framed data, if 
+    the data was not framed it is done so. Several options 
+    for window function and normalisation of the window function 
+    are provided. The window function creates an array which 
+    is then normalised if appropriate. This array is then elementwise
+    multiplied into the framed data. If the data has already been
+    windowed and no parameters are passed then it will reuse the existing
+    windowed data parameters.
+    
+    Parameters
+    ----------
+    windowType {'blackman', 'bartlett', 'hamming', 'hanning', 'kaiser', 'rectangular', 'trapazoid'}, optional
+      pick the window type. If kaiser is specified then the beta parameter must also be, 
+      default is blackman
+    normalisation {'none', 'sum', 'square sum'}, optional
+      what form of normalisation to use on the window. If 'sum' then the array sums
+      to one, if 'square sum', then the elementwise square sums to one, default is 'square sum'
+    
+    Keyword arguments
+    -----------------
+    frameshift: float, optional
+      frame shift in seconds, default is to reuse from frame function
+    framewidth: float, optional
+      frame width in seconds
+    pad: boolean, optional
+      pad the framed data to the original length
+    centred: boolean, optional
+      centre the first frame     
+    
+    Returns
+    -------
+    numpy ndarray
+      windowed version of the frames
       
-      
+    Raises
+    ------
+    ValueError if window type or normalisation type not recognised
+    ValueError if kaiser is specified and no beta is provided
+    """  
+    
+    defaults = {
+      'windowType':windowType, 
+      'normalisation':normalisation, 'normalization':normalisation,
+      'kaiserBeta':kaiserBeta, 
+      'frameshift':self.frameshift,
+      'framewidth':self.framewidth,
+      'pad':self._framedPadded,
+      'centred':self._framedCentred,  'centered':self._framedCentred }
+    for key in kwargs:
+      if key not in defaults.keys():
+        raise KeyError('Unknown key in AudioFile.window: ' + str(key))
 
-     
-        
-        
+    if 'centered' in kwargs.keys() and 'centred' in kwargs.keys():
+      raise KeyError('"centered" and "centred" cannot both be defined')
+    if 'normalization' in kwargs.keys() and 'normalisation' in kwargs.keys():
+      raise KeyError('"normalisation" and "normalization" cannot both be defined')
     
+    if 'centered' in kwargs.keys():
+      kwargs['centred'] = kwargs['centered']
+    if 'normalization' in kwargs.keys():
+      kwargs['normalisation'] = kwargs['normalization']
+
+    for key in defaults:
+      if key not in kwargs.keys() + ['centered','normalization']:
+        kwargs[key] = defaults[key]
     
+    if kwargs['windowType'] is None:
+      windowType = 'blackman'
+    else:  
+      windowType = kwargs['windowType'].lower()        
+    if windowType not in ['blackman', 'bartlett', 'hamming', 'hanning', 'kaiser', 'rectangular', 'trapazoid']:
+      raise ValueError('Unknown window function in AudioFile.window()') 
+      
+    if kwargs['normalisation'] is None:
+      windowNorm = 'square sum'
+    else:
+      windowNorm = kwargs['normalisation'].lower()
+    if windowNorm not in ['none', 'sum', 'square sum']:
+      raise ValueError('Unknown normalisation in AudioFile.window()')   
     
+    if windowType == 'kaiser':
+      if kwargs['kaiserBeta'] is None:
+        kwargs['kaiserBeta'] = self.kaiserBeta   
+      try:
+        self.kaiserBeta = float(kwargs['kaiserBeta'])
+      except:
+        raise ValueError('float beta value is needed for kaiser windowing')  
+
+    # if nothing has changed then just return
+    if windowType == self.windowType and windowNorm == self.windowNorm:
+      if not self._windowFunction is None:
+        if all([self._windowFunction.size == self._framewidthPT,
+               kwargs['frameshift'] == self.frameshift, 
+               kwargs['framewidth'] == self.framewidth,
+               kwargs['pad'] == self._framedPadded, 
+               kwargs['centred'] == self._framedCentred]):
+          return self._windowedData
     
+    # redo the framing       
+    self.frame(kwargs['frameshift'], kwargs['framewidth'], kwargs['pad'], kwargs['centred'])
     
+    windowSize = self._framewidthPT
+    self.windowType = windowType
+    self.windowNorm = windowNorm
+
+    # get the window    
+    if   self.windowType == 'blackman':    self._windowFunction = np.blackman(windowSize)    
+    elif self.windowType == 'bartlett':    self._windowFunction = np.bartlett(windowSize)      
+    elif self.windowType == 'hamming':     self._windowFunction = np.hamming(windowSize)      
+    elif self.windowType == 'hanning':     self._windowFunction = np.hanning(windowSize)      
+    elif self.windowType == 'kaiser':      self._windowFunction = np.kaiser(windowSize, kaiserBeta)      
+    elif self.windowType == 'rectangular': self._windowFunction = np.ones((windowSize))      
+    elif self.windowType == 'trapazoid':
+      m1 = windowSize / 4   
+      m2 = windowSize * 3 / 4;   
+      slope = 4.0 / (windowSize - 1);   
+      self._windowFunction = np.ones(windowSize)
+      for k in range(m1):
+        self._windowFunction[k] = k * slope  
+      for i, k in enumerate(range(m2, windowSize)):
+        self._windowFunction[k] = 4.0 - i * slope  
     
+    self._windowFunction = np.array(self._windowFunction, ndmin = 2)    
     
+    # normalise if needed
+    if self.windowNorm == 'none': 
+      pass
+    elif self.windowNorm == 'sum':
+      self._windowFunction = self._windowFunction / np.sum(self._windowFunction)  
+    elif self.windowNorm == 'square sum':
+      self._windowFunction = self._windowFunction / np.sum(np.square(self._windowFunction))
+
+    # window the data
+    self._windowedData = self._framedData * self._windowFunction
+    
+    return self._windowedData
     
   ############### PRIVATE METHODS ###############
     
@@ -464,27 +598,31 @@ if __name__ == '__main__':
     print 'Testing AudioFile module'
     
     print '   loading files ...',
-    afOpen = AudioFile() # Create unopened object
-    afOpen.open(os.path.join('..','demo','test.raw'), 'raw', 48000, 'float', 32) # Use open function
+    #afOpen = AudioFile() # Create unopened object
+    #afOpen.open(os.path.join('..','demo','test.raw'), 'raw', 48000, 'float', 32) # Use open function
     afRaw = AudioFile(os.path.join('..','demo','test.raw')) # by filename
-    afRaw = AudioFile(open(os.path.join('..','demo','test.raw'),'rb'),'raw') # with object
-    afTxt = AudioFile(os.path.join('..','demo','test.txt'),'txt') # by filename
-    afTxt = AudioFile(open(os.path.join('..','demo','test.txt'),'r'),'txt') # with object
-    assert(afRaw.length == afTxt.length)
-    assert(afRaw.length == afOpen.length)
+    #afRaw = AudioFile(open(os.path.join('..','demo','test.raw'),'rb'),'raw') # with object
+    #afTxt = AudioFile(os.path.join('..','demo','test.txt'),'txt') # by filename
+    #afTxt = AudioFile(open(os.path.join('..','demo','test.txt'),'r'),'txt') # with object
+    #assert(afRaw.length == afTxt.length)
+    #assert(afRaw.length == afOpen.length)
     print ' done'
     
     print '   framing data ...',
-    afRaw.frame(0.005,0.025,True,False)
+    #afRaw.frame(0.005,0.025,True,False)
     afRaw.frame(0.005,0.025,True,True)
-    afRaw.frame(0.005,0.025,False,False)
-    
+    #afRaw.frame(0.005,0.025,False,False)
     print ' done'
     
-    
-
-    
-    
+    print '   windowing data ...',
+    afRaw.window('blackman', 'square sum')
+    afRaw.window('bartlett', 'sum')
+    afRaw.window('hamming', 'none')
+    afRaw.window('hanning')
+    afRaw.window('kaiser','square sum',0.5)
+    afRaw.window('rectangular')
+    afRaw.window('trapazoid')
+    print ' done' 
     
 
 
