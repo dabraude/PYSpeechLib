@@ -1,20 +1,18 @@
 # -*- coding: utf-8 -*-
 
-from scipy.signal import periodogram
-from scipy.fftpack import dct as DCT
+from scipy.fftpack import fft as FFT
 import numpy as np
 
 def mfcc(framewiseData, order = 60, samplerate = 48000, fftLen = None, low = 0, high = None):
-  
 
   samplerate = float(samplerate)
   low = float(low)
   if high is None: 
     high = samplerate / 2 # niquest
   high = float(high)    
+  
   if fftLen is None: 
     fftLen = framewiseData.shape[1]
-      
   if float(fftLen).is_integer():     
     fftLen = int(fftLen)
   else:
@@ -22,14 +20,14 @@ def mfcc(framewiseData, order = 60, samplerate = 48000, fftLen = None, low = 0, 
   
   
   # Get the power spectrum
-  powerSpectrum = periodogram(framewiseData, nfft = fftLen)[1]
+  powerSpectrum = spectrum(framewiseData, fftLen)
     
   # Get the filter banks    
   filters = filterBank(order, low, high, fftLen, samplerate)
   
   
   mfccs = np.log(np.dot(powerSpectrum, filters.T))
-  mfccs = DCT(mfccs, type=2, norm='ortho')
+  mfccs = DCT(mfccs)
   
   
   
@@ -47,6 +45,18 @@ def filterBank(order, low, high, fftLen, samplerate):
       
   return bank
   
+def spectrum(data, fftLen = None):
+  if fftLen is None:
+    fftLen = data.shape[1]
+  fftLen = int(fftLen)  
+  return np.absolute(FFT(data),axis=1,n=fftLen)  
+  
+def DCT(data):
+  N = data.shape[1]
+  ret = np.zeros(data.shape)
+  for k in range(N):
+    ret(:,k) = np.sum(data*cos(np.pi*k/N*(np.arrange(1,N+1) - 0.5)))
+  return np.sqrt(2.0/N)*ret  
   
 def toMel(x):
   """ Converts x from Hz to mel-scale """  
