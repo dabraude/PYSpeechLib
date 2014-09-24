@@ -4,6 +4,25 @@ from scipy.fftpack import fft as FFT
 import numpy as np
 
 def mfcc(framewiseData, order = 60, samplerate = 48000, fftLen = None, low = 0, high = None):
+  """ Get the mel-frequency cepstral coefficients for the give data 
+  
+  Calculates the MFCCs of the data, it is assumed that the data is unbiased and pre-emphasised
+
+  Parameters
+  ----------
+    framewiseData: numpy ndarray
+       data to calculate mfccs for
+    order: int, optional 
+       number of MFCCs to calculate, default 60
+    samplerate: float, optional
+       sample rate of the source audio in Hz, default 48000
+    fftLen: int, optional
+       length of fft used for calculations, default size of frame
+    low: float, optional
+       lowest frequency for fft bins in Hz, default 0
+    high: float, optional
+       highest frequency for fft bins in Hz, default samplerate / 2 
+  """  
 
   samplerate = float(samplerate)
   low = float(low)
@@ -19,14 +38,11 @@ def mfcc(framewiseData, order = 60, samplerate = 48000, fftLen = None, low = 0, 
     raise ValueError('FFT Length is not an integer')  
   
   
-  # Get the power spectrum
-  powerSpectrum = spectrum(framewiseData, fftLen)
-    
-  # Get the filter banks    
+  
+  spectrum = powerSpectrum(framewiseData, fftLen)
   filters = filterBank(order, low, high, fftLen, samplerate)
-  
-  
-  mfccs = np.log(np.dot(powerSpectrum, filters.T))
+  # TODO: apply lifter
+  mfccs = np.log(np.dot(spectrum, filters))
   mfccs = DCT(mfccs)
   
   
@@ -35,27 +51,28 @@ def mfcc(framewiseData, order = 60, samplerate = 48000, fftLen = None, low = 0, 
 
 
 def filterBank(order, low, high, fftLen, samplerate):
+  """ Create a triangular window filter bank """
   centrePoints = fromMel(np.linspace(toMel(low), toMel(high), order + 2))
   centrePoints = np.round(fftLen*centrePoints/samplerate)
   
-  bank = np.zeros((order, fftLen/2+1))
+  bank = np.zeros((order, fftLen/2))
   for o in range(order):
     bank[o, centrePoints[o]:centrePoints[o+1]] = np.linspace(0, 1.0, centrePoints[o+1] - centrePoints[o] + 1)[1:]
     bank[o, centrePoints[o+1]:centrePoints[o+2]] = np.linspace(1.0, 0.0, centrePoints[o+2] - centrePoints[o+1] + 1)[:-1]
       
-  return bank
+  return bank.T
   
-def spectrum(data, fftLen = None):
-  if fftLen is None:
-    fftLen = data.shape[1]
+def powerSpectrum(data, fftLen):
+  """ Calculate the framewise one tail power spectrum """
   fftLen = int(fftLen)  
-  return np.absolute(FFT(data),axis=1,n=fftLen)  
+  return np.absolute(FFT(data,axis=1,n=fftLen)[:,fftLen/2:])  
   
 def DCT(data):
+  """ Discrete Cosine Transform of input data appropriate to MFCCs"""
   N = data.shape[1]
   ret = np.zeros(data.shape)
   for k in range(N):
-    ret(:,k) = np.sum(data*cos(np.pi*k/N*(np.arrange(1,N+1) - 0.5)))
+    ret[:,k] = np.sum(data*np.cos(np.pi*k/N*(np.arange(1,N+1) - 0.5)))
   return np.sqrt(2.0/N)*ret  
   
 def toMel(x):
