@@ -87,17 +87,24 @@ class SpeechFeatures:
         fftLen = self._audiofile.window().shape[1]  
       else:
         fftLen = self._fftLen  
-    
+
     if self._mfcc is None or (not self.mfccOrder == order) or (not fftLen == self._fftLen):
-        
-        self._mfcc = algorithms.mfcc(self._audiofile.window(), 
-                                     order, 
-                                     self._audiofile.rate,  
-                                     fftLen,
-                                     0, 
-                                     self._audiofile.rate/2)
-        self.mfccOrder = self._mfcc.shape[1]
-        self._fftLen = fftLen
+      self._audiofile.frame()
+      emphasised = False
+      if not self._audiofile.preemphasised:
+        emphasised = True
+        self._audiofile.preemphasise()
+
+      self._mfcc = algorithms.mfcc(self._audiofile.window(), 
+                                   order, 
+                                   self._audiofile.rate,  
+                                   fftLen,
+                                   0, 
+                                   self._audiofile.rate/2)
+      if emphasised:
+        self._audiofile.unemphasise() # if it was not preemphasised revert
+      self.mfccOrder = self._mfcc.shape[1]
+      self._fftLen = fftLen
     return self._mfcc 
     
   
@@ -129,6 +136,9 @@ if __name__ == '__main__':
   
   start = time.clock()
   for n in range(m):
+    af = AudioFile.AudioFile(os.path.join('..','demo','test.raw'))
+    af.window('hanning')
+    af.preemphasise()
     sf.setAudio(af)
     sf.mfcc()
   end = time.clock()
