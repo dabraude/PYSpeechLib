@@ -15,27 +15,31 @@ class AudioFile:
   
   Methods
   -------
-    clear:  Empties the data
-    close:  Alias for clear
-    open:   Opens an audio file
-    frame:  Returns a version of the file broken down into frames
-    window: Returns a version of the file that has been broken down and had a windowing function applied
+    clear:        Empties the data
+    close:        Alias for clear
+    open:         Opens an audio file
+    frame:        Returns a version of the file broken down into frames
+    window:       Returns a version of the file that has been broken down and had a windowing function applied
+    preemphasise: applies the preemphasis transform
+    unemphasise:  reverses the preemphasis
     
   Attributes (should be treated as read only)
   ----------
-    read:       Returns if a file was opened and read
-    name:       The original file name
-    fType:      Type of audio file (eg raw)
-    rate:       The sampling rate of the original audio in Hz (eg 48000)
-    encoding:   What type of data was stored [float, double, integer, short, char, ascii]
-    bitdepth:   The size of each sample (eg 16)
-    data:       The original audio data
-    length:     Length of the audio (sec)
-    frameshift: Shift between frames in the current stored version
-    framewidth: Length of the frames in the current stored version
-    windowType: What type of window was used  
-    windowNorm: What type of normalisation was used
-    kaiserBeta: What was the value of the kaiser beta in the window
+    read:          Returns if a file was opened and read
+    name:          The original file name
+    fType:         Type of audio file (eg raw)
+    rate:          The sampling rate of the original audio in Hz (eg 48000)
+    encoding:      What type of data was stored [float, double, integer, short, char, ascii]
+    bitdepth:      The size of each sample (eg 16)
+    data:          The original audio data
+    length:        Length of the audio (sec)
+    frameshift:    Shift between frames in the current stored version
+    framewidth:    Length of the frames in the current stored version
+    windowType:    What type of window was used  
+    windowNorm:    What type of normalisation was used
+    kaiserBeta:    What was the value of the kaiser beta in the window
+    preemphasised: Has the data been pre-emphasised
+    alpha:         pre-emphasis constant
     
     
   Private methods and attributes
@@ -71,19 +75,21 @@ class AudioFile:
 
   def clear(self):
     """ Empties all variables """
-    self.name = ''          # name of the orginal audio file
-    self.fType = ''         # type of audio file e.g. wav or raw
-    self.rate = 0           # sampling frequency of the source file in Hz
-    self.bitdepth = 0       # size of each same (ASCII will be returned as None)
-    self.encoding = ''      # type of encoding e.g. float
-    self.data = None        # the actual audio data (numpy array)
-    self.read = False       # keeps track of if the file was sucessfully opened and read
-    self.length = 0.0       # length of the file in seconds
-    self.frameshift = None  # frame shift used for frame and window functions in seconds
-    self.framewidth = None  # frame length used for frame and window functions in seconds
-    self.windowType = None  # What type of window was used  
-    self.windowNorm = None  # What type of normalisation was used
-    self.kaiserBeta = None  # What was the value of the kaiser beta in the window
+    self.name = ''             # name of the orginal audio file
+    self.fType = ''            # type of audio file e.g. wav or raw
+    self.rate = 0              # sampling frequency of the source file in Hz
+    self.bitdepth = 0          # size of each same (ASCII will be returned as None)
+    self.encoding = ''         # type of encoding e.g. float
+    self.data = None           # the actual audio data (numpy array)
+    self.read = False          # keeps track of if the file was sucessfully opened and read
+    self.length = 0.0          # length of the file in seconds
+    self.frameshift = None     # frame shift used for frame and window functions in seconds
+    self.framewidth = None     # frame length used for frame and window functions in seconds
+    self.windowType = None     # What type of window was used  
+    self.windowNorm = None     # What type of normalisation was used
+    self.kaiserBeta = None     # What was the value of the kaiser beta in the window
+    self.preemphasised = False # Has the data been pre-emphasised
+    self.alpha = None          # pre-emphasis constant
     
     # Private member functions
     self._frameshiftPT = None  # frame shift used for frame and window functions in data points
@@ -248,11 +254,11 @@ class AudioFile:
     centred = kwargs['centred'] or kwargs['centered']
     
     
-    if (frameshift is None and framelength is None) and \
+    if (self._framedData is not None) and (frameshift is None and framelength is None) and \
        not(self.frameshift is None and self.framewidth is None):
       # Existing version available and frameshift and framelength not specified  
       return self._framedData
-    elif (frameshift == self.frameshift and framewidth == self.framewidth) and \
+    elif (self._framedData is not None) and (frameshift == self.frameshift and framewidth == self.framewidth) and \
          (pad == self._framedPadded or pad is None) and \
          (not self._framedPadded  or (centred == self._framedCentred or centred is None)) and \
          not(self.frameshift is None and self.framewidth is None):
@@ -323,7 +329,7 @@ class AudioFile:
         for i, s in enumerate(startInds):
           self._framedData[i,:] = self.data[s:s+self._framewidthPT,:].T
 
-          
+      self.parameterised = False          
 
       """      
       # This was used for finding the fastest method to do the framing
@@ -452,14 +458,20 @@ class AudioFile:
         kwargs[key] = defaults[key]
     
     if kwargs['windowType'] is None:
-      windowType = 'blackman'
+      if self.windowType is None:
+        windowType = 'blackman'
+      else:
+        windowType = self.windowType
     else:  
       windowType = kwargs['windowType'].lower()        
     if windowType not in ['blackman', 'bartlett', 'hamming', 'hanning', 'kaiser', 'rectangular', 'trapazoid']:
       raise ValueError('Unknown window function in AudioFile.window()') 
       
     if kwargs['normalisation'] is None:
-      windowNorm = 'square sum'
+      if self.windowNorm is None:
+        windowNorm = 'square sum'
+      else:
+        windowNorm = self.windowNorm
     else:
       windowNorm = kwargs['normalisation'].lower()
     if windowNorm not in ['none', 'sum', 'square sum']:
@@ -474,7 +486,7 @@ class AudioFile:
         raise ValueError('float beta value is needed for kaiser windowing')  
 
     # if nothing has changed then just return
-    if windowType == self.windowType and windowNorm == self.windowNorm:
+    if windowType == self.windowType and windowNorm == self.windowNorm and not self._windowedData is None:
       if not self._windowFunction is None:
         if all([self._windowFunction.size == self._framewidthPT,
                kwargs['frameshift'] == self.frameshift, 
@@ -508,7 +520,7 @@ class AudioFile:
         self._windowFunction[k] = 4.0 - i * slope  
     
     self._windowFunction = np.array(self._windowFunction, ndmin = 2)    
-    
+
     # normalise if needed
     if self.windowNorm == 'none': 
       pass
@@ -521,6 +533,64 @@ class AudioFile:
     self._windowedData = self._framedData * self._windowFunction
     
     return self._windowedData
+
+  def preemphasise(self, alpha = None, **kwargs):
+    """ Applies the preemphasis transform
+
+    the preemphasis transform is for frame s_i
+    s_i(n) = s_i(n) - alpha * s_i(n-1)
+
+    Parameters
+    ----------
+    alpha: float, optional
+      preemphasis constant defaults to 0.97
+
+    Returns
+    -------
+    numpy ndarray 
+      The preemphasised data
+    """
+
+    defaults = {'alpha':alpha}
+    for key in kwargs:
+      if key not in defaults.keys():
+        raise KeyError('Unknown key in Audiofile.preemphasise: {0}'.format(key))
+    for key in defaults:
+      if key not in kwargs.keys():
+        kwargs[key] = defaults[key] 
+    
+    if kwargs['alpha'] is None:
+      if self.alpha is None: 
+        alpha = 0.97 
+      else:
+        alpha = self.alpha
+    else:
+      alpha = float(kwargs['alpha'])
+
+    if self.preemphasised and self.alpha == alpha:
+      return self._framedData
+    else:
+      self.frame()
+      self._framedData[:,1:] -= alpha*self._framedData[:,1:]
+      self.parameterised = True
+      self.alpha = alpha
+      self._windowedData = None
+      return self._framedData         
+       
+  def unemphasise(self):
+    """ Reverts the data to before the preemphaisis 
+
+    Returns
+    -------
+    numpy ndarray
+      umemphasised framed data
+    """
+    if self.preemphasised:
+      self._framedData = None
+      return self.frame()
+    else:  
+      return self._framedData
+
     
   ############### PRIVATE METHODS ###############
     
@@ -613,6 +683,7 @@ if __name__ == '__main__':
     afRaw.frame(0.005,0.025,False,False)
     print ' done'
     
+
     print '   windowing data ...',
     afRaw.window('blackman', 'square sum')
     afRaw.window('bartlett', 'sum')
@@ -623,21 +694,27 @@ if __name__ == '__main__':
     afRaw.window('trapazoid')
     print ' done' 
 
+    
+    print '   preemphasising data ...',
+    afRaw.preemphasise(0.97)
+    print ' done'
+
     import time    
     afTest = AudioFile()
     testFile = os.path.join('..','demo','test.raw')
     
     start = time.clock()
-    m = 100
+    m = 10
     for n in range(m):
         afTest.clear()
         afTest.open(testFile)
         afTest.frame()
+        afTest.preemphasise()
         afTest.window()
+        afTest.unemphasise()
     end = time.clock()
-    print "   average run time: {0}".format((end-start)/m)
+    print "   average run time for frame and window: {0}".format((end-start)/m)
     
-
 
 
 
