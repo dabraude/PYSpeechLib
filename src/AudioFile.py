@@ -131,7 +131,7 @@ class AudioFile:
     bitdepth : integer, optional
       Number of bits per sample, default 32 for raw files, None for ascii, otherwise always read from file and ignored
     
-    keyword only arguments (all optional):
+    Keyword only arguments (all optional):
     ----------------------
       endian = {'=','>','<'}
         endianess in order: (machine, big, little), default is machine, only used for raw files
@@ -217,6 +217,8 @@ class AudioFile:
     an existing framed version if no frame shift is specified
     and it was framed previously. Will also not recalculate
     if was already framed with the same frame shift and length.
+    Each row in the return matrix is one frame. The frames may 
+    overlap
     
     Parameters
     ----------
