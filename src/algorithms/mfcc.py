@@ -37,17 +37,13 @@ def mfcc(framewiseData, order = 60, samplerate = 48000, fftLen = None, low = 0, 
         fftLen = int(fftLen)
     else:
         raise ValueError('FFT Length is not an integer')  
-  
-  
-  
+
     spectrum = powerSpectrum(framewiseData, fftLen)
     filters = filterBank(order, low, high, fftLen, samplerate)
     # TODO: apply lifter
     mfccs = np.log(np.dot(spectrum, filters))
     mfccs = DCT(mfccs, type=2, norm='ortho')
-  
     return mfccs
-
 
 def filterBank(order, low, high, fftLen, samplerate):
     """ Create a triangular window filter bank """
