@@ -16,28 +16,28 @@ class SpeechFeatures:
 
     Methods
     -------
-    clear:     Empties the data
-    close:     Alias for clear
-    setAudio:  Sets the input audio
-    energy:    Returns framewise energy
-    logEnergy: Returns framewise log energy
-    mfcc:      Returns the framewise mfccs
+        clear:     Empties the data
+        close:     Alias for clear
+        setAudio:  Sets the input audio
+        energy:    Returns framewise energy
+        logEnergy: Returns framewise log energy
+        mfcc:      Returns the framewise mfccs
 
     Attributes (should be treated as read only)
     ----------
-    name:      The original file name
-    mfccOrder: Order of the MFCCs if they have been calculated
+        name:      The original file name
+        mfccOrder: Order of the MFCCs if they have been calculated
 
 
     Private methods and attributes
     ------------------------------
-    _audiofile:     AudioFile object
-    _energy:        stored energy
-    _logEnergy:     stored logEnergy 
-    _mfcc:          stored coefficients   
-    _fftLen:        FFT length for all analysis 
-    _mfccLowBand:   Lowest band for the mel filters
-    _mfccHighBand:  Highest band of the mel filters
+        _audiofile:     AudioFile object
+        _energy:        stored energy
+        _logEnergy:     stored logEnergy 
+        _mfcc:          stored coefficients   
+        _fftLen:        FFT length for all analysis 
+        _mfccLowBand:   Lowest band for the mel filters
+        _mfccHighBand:  Highest band of the mel filters
     """
 
     def __init__(self, audiofile = None):

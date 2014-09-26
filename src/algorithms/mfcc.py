@@ -12,7 +12,7 @@ def mfcc(framewiseData, order = 60, samplerate = 48000, fftLen = None, low = 0, 
     Parameters
     ----------
     framewiseData: numpy ndarray
-        data to calculate mfccs for
+        data to calculate mfccs for, each row is one frame
     order: int, optional 
         number of MFCCs to calculate, default 60
     samplerate: float, optional
@@ -23,6 +23,16 @@ def mfcc(framewiseData, order = 60, samplerate = 48000, fftLen = None, low = 0, 
         lowest frequency for fft bins in Hz, default 0
     high: float, optional
         highest frequency for fft bins in Hz, default samplerate / 2 
+        
+        
+    Returns
+    -------
+    numpy ndarray
+        mfccs, each row is one frame
+    
+    Raises
+    ------
+    ValueError    
     """  
 
     samplerate = float(samplerate)
